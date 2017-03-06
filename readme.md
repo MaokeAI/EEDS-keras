@@ -23,7 +23,7 @@ Excute:
 
 ## Result:
 
-EEDS training for 100 epoches and EES training for 200 epoches, with upscaling factor 2
+EEDS and EES training for 100 epoches, with upscaling factor 2
 
 |Method:| Bicubic | SRCNN | EEDS | EES |
 |-------|---------|-------|------|-----|
@@ -41,7 +41,7 @@ input:
 
 EES:
 <p align="left">
-  <img src="https://github.com/MarkPrecursor/EEDS-keras/blob/master/EES_adam200.jpg" width="200"/>
+  <img src="https://github.com/MarkPrecursor/EEDS-keras/blob/master/EES_pre_adam100.jpg" width="200"/>
 </p>
 
 EEDS:
