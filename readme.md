@@ -50,4 +50,15 @@ EEDS:
 </p>
 
 
+## feature map visualization of EES:
+After conv1:
+<p align="left">
+  <img src="https://github.com/MarkPrecursor/EEDS-keras/blob/master/layer1.png" width="800"/>
+</p>
 
+After Deconv:
+<p align="left">
+  <img src="https://github.com/MarkPrecursor/EEDS-keras/blob/master/layer1.png" width="800"/>
+</p>
+
+This code of feature map visualization part refered the code of https://www.kaggle.com/abhmul/leaf-classification/keras-convnet-lb-0-0052-w-visualization
