@@ -33,7 +33,7 @@ Excute:
 
 EEDS and EES training for 200 epoches, with upscaling factor 2
 <p align="left">
-  <img src="https://github.com/MarkPrecursor/SRCNN-keras/blob/master/result.jpg" width="800"/>
+  <img src="https://github.com/MarkPrecursor/SRCNN-keras/blob/master/result.png" width="800"/>
 </p>
 
 Origin Image:
