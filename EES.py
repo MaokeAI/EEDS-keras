@@ -1,55 +1,80 @@
 from keras.models import Model
-from keras.layers import Conv2D, Input, Deconvolution2D, merge
+from keras.layers import Conv2D, Input, Conv2DTranspose, merge
 from keras.optimizers import SGD, adam
+from keras.callbacks import ModelCheckpoint
 import prepare_data as pd
+import pandas
 import numpy
 import cv2
 
 
-def model_EES(input_col, input_row):
-    _input = Input(shape=(input_col, input_row, 1), name='input')
+scale = 2
 
-    EES = Conv2D(nb_filter=8, nb_row=3, nb_col=3, init='he_normal',
-                 activation='relu', border_mode='same', bias=True)(_input)
-    EES = Deconvolution2D(nb_filter=16, nb_row=14, nb_col=14, output_shape=(None, input_col * 2, input_row * 2, 16),
-                          subsample=(2, 2), border_mode='same', init='glorot_uniform', activation='relu')(EES)
-    out = Conv2D(nb_filter=1, nb_row=5, nb_col=5, init='glorot_uniform', activation='relu', border_mode='same')(EES)
+
+def model_EES16():
+    _input = Input(shape=(None, None, 1), name='input')
+
+    EES = Conv2D(filters=16, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(_input)
+    EES = Conv2DTranspose(filters=32, kernel_size=(14, 14), strides=(2, 2), padding='same', activation='relu')(EES)
+    out = Conv2D(filters=1, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(EES)
 
     model = Model(input=_input, output=out)
-    # sgd = SGD(lr=0.0001, decay=0.005, momentum=0.9, nesterov=True)
-    Adam = adam(lr=0.001)
-    model.compile(optimizer=Adam, loss='mean_squared_error', metrics=['mean_squared_error'])
+
+    return model
+
+
+def model_EES():
+    _input = Input(shape=(None, None, 1), name='input')
+
+    EES = Conv2D(filters=4, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(_input)
+    EES = Conv2DTranspose(filters=8, kernel_size=(14, 14), strides=(2, 2), padding='same', activation='relu')(EES)
+    out = Conv2D(filters=1, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding='same')(EES)
+
+    model = Model(input=_input, output=out)
+
     return model
 
 
 def EES_train():
-    EES = model_EES(input_col=48, input_row=48)
-    data, label = pd.read_training_data("./little_train.h5")
-    EES.fit(data, label, batch_size=256, nb_epoch=100)
-    EES.save_weights("EES_model_adam100.h5")
+    EES = model_EES16()
+    EES.compile(optimizer=adam(lr=0.0003), loss='mse')
+    print EES.summary()
+
+    data, label = pd.read_training_data("./train.h5")
+    val_data, val_label = pd.read_training_data("./val.h5")
+
+    checkpoint = ModelCheckpoint("EES_check.h5", monitor='val_loss', verbose=1, save_best_only=True,
+                                 save_weights_only=False, mode='min')
+    callbacks_list = [checkpoint]
+
+    history_callback = EES.fit(data, label, batch_size=64, validation_data=(val_data, val_label),
+                               callbacks=callbacks_list, shuffle=True, nb_epoch=200, verbose=1)
+    pandas.DataFrame(history_callback.history).to_csv("history.csv")
+    EES.save_weights("EES_final.h5")
 
 
 def EES_predict():
-    EES = model_EES(input_col=128, input_row=128)
-    EES.load_weights("EES_model_adam100.h5")
-    IMG_NAME = "butterfly_GT.bmp"
+    IMG_NAME = "./butterfly_GT.bmp"
     INPUT_NAME = "input.jpg"
-    OUTPUT_NAME = "EES_pre_adam100.jpg"
+    OUTPUT_NAME = "EES_pre.jpg"
 
-    img = cv2.imread(IMG_NAME)
-    shape = img.shape
-    img = cv2.resize(img, (shape[1] / 2, shape[0] / 2), cv2.INTER_CUBIC)
+    label = cv2.imread(IMG_NAME)
+    shape = label.shape
+
+    img = cv2.resize(label, (shape[1] / scale, shape[0] / scale), cv2.INTER_CUBIC)
     cv2.imwrite(INPUT_NAME, img)
+
+    EES = model_EES16()
+    EES.load_weights("EES_check.h5")
 
     img = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
     Y = numpy.zeros((1, img.shape[0], img.shape[1], 1))
-    Y[0, :, :, 0] = img[:, :, 0]
-    img = cv2.resize(img, (shape[1], shape[0]), cv2.INTER_CUBIC)
+    Y[0, :, :, 0] = img[:, :, 0].astype(float) / 255.
+    img = cv2.cvtColor(label, cv2.COLOR_BGR2YCrCb)
 
-    pre = EES.predict(Y, batch_size=1)
+    pre = EES.predict(Y, batch_size=1) * 255.
     pre[pre[:] > 255] = 255
-    pre[pre[:] < 0] = 0
-    pre = pre.astype(numpy.uint8)
+    pre = numpy.uint8(pre)
     img[:, :, 0] = pre[0, :, :, 0]
     img = cv2.cvtColor(img, cv2.COLOR_YCrCb2BGR)
     cv2.imwrite(OUTPUT_NAME, img)
@@ -60,6 +85,7 @@ def EES_predict():
     im2 = cv2.imread(INPUT_NAME, cv2.IMREAD_COLOR)
     im2 = cv2.cvtColor(im2, cv2.COLOR_BGR2YCrCb)
     im2 = cv2.resize(im2, (img.shape[1], img.shape[0]))
+    cv2.imwrite("Bicubic.jpg", cv2.cvtColor(im2, cv2.COLOR_YCrCb2BGR))
     im3 = cv2.imread(OUTPUT_NAME, cv2.IMREAD_COLOR)
     im3 = cv2.cvtColor(im3, cv2.COLOR_BGR2YCrCb)
 
@@ -141,11 +167,10 @@ def feature_map_visilization(model, _input):
 
 
 def vilization_and_show():
-    model = model_EES(input_col=128, input_row=128)
-    model.load_weights("EES_model_adam100.h5")
-    IMG_NAME = "butterfly_GT.bmp"
+    model = model_EES16()
+    model.load_weights("EES_check.h5")
+    IMG_NAME = "comic.bmp"
     INPUT_NAME = "input.jpg"
-    # OUTPUT_NAME = "EES_pre_adam100.jpg"
 
     img = cv2.imread(IMG_NAME)
     shape = img.shape
@@ -162,4 +187,4 @@ def vilization_and_show():
 if __name__ == "__main__":
     EES_train()
     EES_predict()
-    vilization_and_show()
+    #vilization_and_show()
